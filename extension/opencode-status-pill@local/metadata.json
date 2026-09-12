@@ -1,0 +1,8 @@
+{
+  "uuid": "opencode-status-pill@local",
+  "name": "Opencode Status Pill",
+  "description": "Glanceable pill in top bar: green idle, yellow working, red needs you, magenta error.",
+  "shell-version": ["45", "46", "47", "48", "49", "50", "51"],
+  "version": 1,
+  "url": "https://github.com/x0shreyash/opencode-status-pill"
+}

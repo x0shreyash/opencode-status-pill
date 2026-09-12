@@ -1,0 +1,34 @@
+{
+  "name": "opencode-status-pill",
+  "version": "0.1.0",
+  "description": "Panel-native status pill for opencode — GNOME top bar green/yellow/red/magenta",
+  "type": "module",
+  "main": "traffic-light.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/x0shreyash/opencode-status-pill.git"
+  },
+  "homepage": "https://github.com/x0shreyash/opencode-status-pill",
+  "bugs": {
+    "url": "https://github.com/x0shreyash/opencode-status-pill/issues"
+  },
+  "author": "x0shreyash <shreyashdas54@gmail.com>",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node tests/aggregate.test.js && node tests/history.test.js && node tests/sizes.test.js && echo \"all tests passed\"",
+    "doctor": "traffic-light doctor",
+    "waybar": "traffic-light waybar"
+  },
+  "bin": {
+    "opencode-status-pill": "./traffic-light",
+    "traffic-light": "./traffic-light"
+  },
+  "keywords": ["opencode", "gnome-shell", "panel", "status-pill", "traffic-light"],
+  "license": "MIT",
+  "files": ["traffic-light.js", "traffic-light", "extension/", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public"
+  }
+}

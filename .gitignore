@@ -1,0 +1,7 @@
+# opencode traffic-light — ignore local / junk
+.opencode/
+.opencode-tmp/
+*.log
+node_modules/
+package-lock.json
+yarn.lock

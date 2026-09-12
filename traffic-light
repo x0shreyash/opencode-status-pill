@@ -1,0 +1,366 @@
+#!/bin/sh
+# traffic-light — panel-native CLI
+# Usage: traffic-light status|sessions|history|waybar|doctor|logs|uninstall
+set -e
+
+PORT=4390
+BASE="http://127.0.0.1:${PORT}"
+CFG="$HOME/.config/opencode-status-pill"
+TOKEN_FILE="$CFG/token"
+
+token_arg() {
+  if [ -f "$TOKEN_FILE" ]; then
+    printf " -H x-traffic-token:%s" "$(cat "$TOKEN_FILE" | tr -d '\n' | tr -d '\r')"
+  fi
+}
+
+do_status() {
+  HDR=$(token_arg)
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$HDR" ]; then
+      # shellcheck disable=SC2086
+      curl -sf $HDR "$BASE/health" 2>/dev/null || curl -sf "$BASE/health" 2>/dev/null || curl -sf $HDR "$BASE/status" 2>/dev/null || curl -sf "$BASE/status" 2>/dev/null || { echo "server not running (no TUI?)"; exit 1; }
+    else
+      curl -sf "$BASE/health" 2>/dev/null || curl -sf "$BASE/status" 2>/dev/null || { echo "server not running (no TUI?)"; exit 1; }
+    fi | python3 -m json.tool 2>/dev/null || cat
+  else
+    python3 -c "
+import urllib.request, json, os
+tok=None
+try:
+ p=os.path.expanduser('~/.config/opencode-status-pill/token')
+ tok=open(p).read().strip() if os.path.exists(p) else None
+except: pass
+import urllib.error
+for path in ['/health','/status']:
+  try:
+    req=urllib.request.Request('http://127.0.0.1:4390'+path)
+    if tok: req.add_header('x-traffic-token', tok)
+    with urllib.request.urlopen(req, timeout=2) as r:
+      print(json.dumps(json.loads(r.read()), indent=2))
+      break
+  except Exception as e:
+    continue
+else:
+  print('server not running (no TUI?)')
+"
+  fi
+}
+
+do_sessions() {
+  HDR=$(token_arg)
+  URL="$BASE/status"
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$HDR" ]; then
+      # shellcheck disable=SC2086
+      curl -sf $HDR "$URL" 2>/dev/null || curl -sf "$URL" 2>/dev/null || { echo "server not running"; exit 1; }
+    else
+      curl -sf "$URL" 2>/dev/null || { echo "server not running"; exit 1; }
+    fi | python3 -c "
+import json, sys, time
+d=json.load(sys.stdin)
+agg=d.get('aggregate') or d.get('state')
+print(f\"aggregate: {agg}\")
+for s in d.get('sessions',[]):
+  stale=' STALE' if s.get('stale') else ''
+  elapsed=int((time.time()*1000 - s['since'])/1000)
+  m,sec=divmod(elapsed,60)
+  e=f'{m}m{sec:02d}s' if m else f'{sec}s'
+  cwd=s.get('cwd') or 'global'
+  print(f\"  {s['color']:6} {s['sid'][:8]:8} {cwd:30} {s['reason'][:40]:40} {e:>6}{stale}\")
+"
+  else
+    python3 -c "
+import urllib.request, json, time, os
+tok=None
+try:
+ p=os.path.expanduser('~/.config/opencode-status-pill/token')
+ tok=open(p).read().strip() if os.path.exists(p) else None
+except: pass
+req=urllib.request.Request('http://127.0.0.1:4390/status')
+if tok: req.add_header('x-traffic-token', tok)
+try:
+ with urllib.request.urlopen(req, timeout=2) as r:
+  d=json.loads(r.read())
+  agg=d.get('aggregate') or d.get('state')
+  print(f\"aggregate: {agg}\")
+  for s in d.get('sessions',[]):
+    stale=' STALE' if s.get('stale') else ''
+    elapsed=int((time.time()*1000 - s['since'])/1000)
+    m,sec=divmod(elapsed,60)
+    e=f'{m}m{sec:02d}s' if m else f'{sec}s'
+    cwd=s.get('cwd') or 'global'
+    print(f\"  {s['color']:6} {s['sid'][:8]:8} {cwd:30} {s['reason'][:40]:40} {e:>6}{stale}\")
+except Exception as e:
+  print(f'server not running: {e}')
+"
+  fi
+}
+
+do_doctor() {
+  echo "traffic-light doctor — panel-native"
+  echo ""
+  FAIL=0
+  PASS=0
+  check() {
+    if eval "$2" >/dev/null 2>&1; then echo "  ✓ $1"; PASS=$((PASS+1)); else echo "  ✗ $1"; FAIL=$((FAIL+1)); fi
+  }
+  check2() {
+    # check returns msg
+    if eval "$2" >/dev/null 2>&1; then echo "  ✓ $1 — $3"; PASS=$((PASS+1)); else echo "  ✗ $1 — $3"; FAIL=$((FAIL+1)); fi
+  }
+
+  echo "1) Files"
+  [ -f "$HOME/.config/opencode/plugins/traffic-light/traffic-light.js" ] && echo "  ✓ plugin installed at ~/.config/opencode/plugins/traffic-light/" || { echo "  ✗ plugin missing"; FAIL=$((FAIL+1)); }
+  [ -d "$HOME/.local/share/gnome-shell/extensions/opencode-status-pill@local" ] && echo "  ✓ extension installed" || { echo "  ✗ extension not in ~/.local/share/gnome-shell/extensions/"; FAIL=$((FAIL+1)); }
+  [ -f "$TOKEN_FILE" ] && echo "  ✓ token exists ($(wc -c < "$TOKEN_FILE" | tr -d ' ') bytes)" || echo "  ○ token missing (will be created on setup)"
+  if [ -f "$CFG/config.json" ]; then
+    if python3 -m json.tool "$CFG/config.json" >/dev/null 2>&1; then
+      echo "  ✓ config.json valid ($(python3 -c "import json; d=json.load(open('$CFG/config.json')); print(f\"pollMs={d.get('pollMs')} staleMs={d.get('staleMs')}\")"))"
+    else
+      echo "  ✗ config.json invalid JSON"; FAIL=$((FAIL+1))
+    fi
+  else
+    echo "  ○ config.json missing (defaults will be used)"
+  fi
+
+  echo ""
+  echo "2) Effective opencode config"
+  if command -v opencode >/dev/null 2>&1; then
+    if timeout 10 opencode debug config 2>/dev/null | grep -q "traffic-light"; then
+      echo "  ✓ traffic-light in effective config (opencode debug config)"
+      PASS=$((PASS+1))
+    else
+      echo "  ✗ traffic-light NOT in effective config — run ./setup.sh and restart TUI"
+      echo "    hint: opencode.jsonc overrides opencode.json"
+      FAIL=$((FAIL+1))
+    fi
+  else
+    echo "  ○ opencode not on PATH"
+  fi
+
+  echo ""
+  echo "3) HTTP server (needs a TUI running)"
+  HDR=$(token_arg)
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$HDR" ]; then
+      # shellcheck disable=SC2086
+      if curl -sf $HDR "$BASE/health" >/dev/null 2>&1 || curl -sf "$BASE/health" >/dev/null 2>&1; then
+        echo "  ✓ server reachable at $BASE/health"
+        PASS=$((PASS+1))
+        # show aggregate
+        curl -sf $HDR "$BASE/status" 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print('    aggregate:', d.get('aggregate', d.get('state')), '| sessions:', len(d.get('sessions',[])))" 2>/dev/null || true
+      else
+        echo "  ✗ server not reachable — start an opencode TUI (plugins load at TUI start)"
+        FAIL=$((FAIL+1))
+      fi
+    else
+      if curl -sf "$BASE/health" >/dev/null 2>&1; then
+        echo "  ✓ server reachable"
+        PASS=$((PASS+1))
+      else
+        echo "  ✗ server not reachable — start an opencode TUI"
+        FAIL=$((FAIL+1))
+      fi
+    fi
+  else
+    echo "  ○ curl not found, trying python"
+    python3 -c "import urllib.request,os; tok=open(os.path.expanduser('~/.config/opencode-status-pill/token')).read().strip() if os.path.exists(os.path.expanduser('~/.config/opencode-status-pill/token')) else None; r=urllib.request.Request('http://127.0.0.1:4390/health'); r.add_header('x-traffic-token',tok) if tok else None; urllib.request.urlopen(r,timeout=2).read(); print('  ✓ reachable')" 2>&1 || echo "  ✗ not reachable"
+  fi
+
+  echo ""
+  echo "4) GNOME Shell extension"
+  if command -v gnome-extensions >/dev/null 2>&1; then
+    if gnome-extensions list 2>/dev/null | grep -q "opencode-status-pill@local"; then
+      STATE=$(gnome-extensions info opencode-status-pill@local 2>/dev/null | grep -i state || true)
+      echo "  ✓ extension listed: $STATE"
+      if gnome-extensions show opencode-status-pill@local 2>/dev/null | grep -qi "enabled.*yes\|state.*enabled"; then echo "    enabled"; else echo "    check: gnome-extensions enable opencode-status-pill@local"; fi
+      PASS=$((PASS+1))
+    else
+      echo "  ✗ extension not listed (not installed?)"
+      FAIL=$((FAIL+1))
+    fi
+    if gnome-extensions list --enabled 2>/dev/null | grep -q "opencode-status-pill@local"; then
+      echo "  ✓ extension enabled"
+    else
+      echo "  ○ extension installed but not enabled — run: gnome-extensions enable opencode-status-pill@local (then logout/login if fresh)"
+    fi
+  else
+    echo "  ○ gnome-extensions not found"
+  fi
+
+  echo ""
+  echo "5) Shell logs"
+  echo "  hint: journalctl -o cat /usr/bin/gnome-shell | grep -i traffic-light"
+  echo "       or: journalctl --user -f | grep traffic-light"
+  echo ""
+  echo "Summary: $PASS ok, $FAIL failed"
+  echo "If server failed, restart your TUI after setup. If extension failed, logout/login after fresh install."
+  [ "$FAIL" -eq 0 ] && exit 0 || exit 1
+}
+
+do_history() {
+  SID="${2:-}"
+  # handle --all first
+  if [ "$SID" = "--all" ] || [ "$SID" = "-a" ]; then
+    HDR=$(token_arg)
+    URL="$BASE/status?history=1"
+    if command -v curl >/dev/null 2>&1; then
+      if [ -n "$HDR" ]; then DATA=$(curl -sf $HDR "$URL" 2>/dev/null || curl -sf "$URL" 2>/dev/null); else DATA=$(curl -sf "$URL" 2>/dev/null); fi
+      echo "$DATA" | python3 -c "
+import json, sys, time
+d=json.load(sys.stdin)
+if not d.get('sessions'):
+  print('no sessions')
+else:
+  for s in d.get('sessions',[]):
+    print(f\"{s['sid']} ({s['color']}):\")
+    for h in s.get('history',[]):
+      ts=time.strftime('%H:%M:%S', time.localtime(h['at']/1000))
+      print(f\"  {ts} {h['color']:6} {h['reason']}\")
+"
+    fi
+    return
+  fi
+  if [ -z "$SID" ]; then
+    echo "Usage: traffic-light history <sid>  (or traffic-light history --all)"
+    echo "Lists last 10 state changes per session (via GET /history or /status?history=1)"
+    HDR=$(token_arg)
+    URL="$BASE/status?history=1"
+    if command -v curl >/dev/null 2>&1; then
+      if [ -n "$HDR" ]; then curl -sf $HDR "$URL" 2>/dev/null || curl -sf "$URL" 2>/dev/null; else curl -sf "$URL" 2>/dev/null; fi | python3 -m json.tool 2>/dev/null || echo "server not running"
+    fi
+    return
+  fi
+  HDR=$(token_arg)
+  URL="$BASE/history?sid=$SID"
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$HDR" ]; then curl -sf $HDR "$URL" 2>/dev/null || curl -sf "$URL" 2>/dev/null; else curl -sf "$URL" 2>/dev/null; fi | python3 -m json.tool 2>/dev/null || echo "server not running or sid not found"
+  else
+    python3 -c "
+import urllib.request, json, os
+sid='$SID'
+tok=None
+try:
+ p=os.path.expanduser('~/.config/opencode-status-pill/token')
+ tok=open(p).read().strip() if os.path.exists(p) else None
+except: pass
+req=urllib.request.Request(f'http://127.0.0.1:4390/history?sid={sid}')
+if tok: req.add_header('x-traffic-token', tok)
+try:
+ with urllib.request.urlopen(req, timeout=2) as r:
+  print(json.dumps(json.loads(r.read()), indent=2))
+except Exception as e:
+ print(f'error: {e}')
+"
+  fi
+}
+
+do_waybar() {
+  # waybar custom module: outputs JSON for waybar
+  # usage: waybar config: "custom/traffic-light": { "exec": "traffic-light waybar", "return-type": "json", "interval": 1 }
+  HDR=$(token_arg)
+  URL="$BASE/status"
+  DATA=""
+  if command -v curl >/dev/null 2>&1; then
+    if [ -n "$HDR" ]; then DATA=$(curl -sf $HDR "$URL" 2>/dev/null || curl -sf "$URL" 2>/dev/null || echo ""); else DATA=$(curl -sf "$URL" 2>/dev/null || echo ""); fi
+  else
+    DATA=$(python3 -c "
+import urllib.request, json, os
+tok=None
+try:
+ p=os.path.expanduser('~/.config/opencode-status-pill/token')
+ tok=open(p).read().strip() if os.path.exists(p) else None
+except: pass
+try:
+ req=urllib.request.Request('http://127.0.0.1:4390/status')
+ if tok: req.add_header('x-traffic-token', tok)
+ with urllib.request.urlopen(req, timeout=2) as r:
+  print(r.read().decode())
+except: pass
+" 2>/dev/null)
+  fi
+  if [ -z "$DATA" ]; then
+    # offline
+    python3 -c "import json; print(json.dumps({'text':'○','tooltip':'traffic-light: server not running','class':'offline','alt':'offline'}))"
+    return
+  fi
+  echo "$DATA" | python3 -c "
+import json, sys
+try:
+ d=json.load(sys.stdin)
+ agg=d.get('aggregate') or d.get('state') or 'green'
+ sessions=d.get('sessions',[])
+  icons={'green':'●','yellow':'●','red':'●','error':'◆'}
+  colors={'green':'#2ecc71','yellow':'#ffcc00','red':'#ff453a','error':'#bf5af2'}
+ icon=icons.get(agg, '●')
+ # tooltip: list sessions
+ tooltip=f'{agg} — {len(sessions)} session(s)'
+ for s in sessions[:5]:
+   tooltip += f\"\\n{s['color']:6} {s.get('cwd','') } {s['reason']}\"
+ # waybar class for CSS
+ cls=agg
+ if any(s.get('stale') for s in sessions): cls += ' stale'
+ print(json.dumps({'text': icon, 'tooltip': tooltip, 'class': cls, 'alt': agg}))
+except Exception as e:
+ print(json.dumps({'text':'?','tooltip':str(e),'class':'error'}))
+"
+}
+
+do_uninstall() {
+  echo "traffic-light uninstall — panel-native"
+  echo "This will remove the plugin and extension (keeps token/config by default)."
+  echo "Add --all to also remove token/config.json"
+  REMOVE_ALL=0
+  if [ "$2" = "--all" ] || [ "$1" = "--all" ]; then REMOVE_ALL=1; fi
+  echo "Removing plugin at ~/.config/opencode/plugins/traffic-light/ ..."
+  rm -rf ~/.config/opencode/plugins/traffic-light 2>/dev/null || true
+  # try to deregister from opencode.jsonc (best-effort, leaves valid JSON)
+  if grep -q "traffic-light" ~/.config/opencode/opencode.jsonc 2>/dev/null; then
+    python3 <<'PY' 2>/dev/null || true
+import re, pathlib
+p = pathlib.Path.home() / ".config/opencode/opencode.jsonc"
+raw = p.read_text()
+raw = re.sub(r',?\s*"./plugins/traffic-light/traffic-light\.js"\s*,?', '', raw)
+raw = re.sub(r',\s*,', ',', raw)
+raw = re.sub(r'\[\s*,', '[', raw)
+raw = re.sub(r',\s*\]', ']', raw)
+p.write_text(raw)
+print("deregistered from opencode.jsonc")
+PY
+  fi
+  echo "Disabling extension ..."
+  gnome-extensions disable opencode-status-pill@local 2>/dev/null || true
+  rm -rf ~/.local/share/gnome-shell/extensions/opencode-status-pill@local 2>/dev/null || true
+  echo "Removing CLI link ..."
+  rm -f ~/.local/bin/traffic-light 2>/dev/null || true
+  if [ "$REMOVE_ALL" = "1" ]; then
+    echo "Removing token/config (--all) ..."
+    rm -f ~/.config/opencode-status-pill/token ~/.config/opencode-status-pill/config.json 2>/dev/null || true
+    rmdir ~/.config/opencode-status-pill 2>/dev/null || true
+  else
+    echo "Kept ~/.config/opencode-status-pill/ (token/config.json) — use --all to remove"
+  fi
+  echo "Done. Restart any opencode TUI and logout/login to clear pill."
+}
+
+do_logs() {
+  echo "== opencode plugin logs (gnome-shell) =="
+  journalctl -o cat /usr/bin/gnome-shell 2>/dev/null | grep -i "traffic-light" | tail -n 50 || echo "no shell logs"
+  echo ""
+  echo "== opencode app logs =="
+  # opencode logs via client.app.log go to opencode logs — try to show recent
+  journalctl --user -n 30 --no-pager 2>/dev/null | head -20 || true
+}
+
+case "${1:-status}" in
+  status) do_status ;;
+  sessions) do_sessions ;;
+  history) do_history "$@" ;;
+  waybar) do_waybar "$@" ;;
+  doctor) do_doctor ;;
+  logs) do_logs ;;
+  uninstall) do_uninstall "$@" ;;
+  help|--help|-h) echo "Usage: traffic-light {status|sessions|history <sid>|waybar|doctor|logs|uninstall}"; echo "  status          — GET /health or /status"; echo "  sessions        — table of per-session states"; echo "  history <sid>   — last 10 state changes (or --all)"; echo "  waybar          — JSON for waybar custom module (return-type json)"; echo "  doctor          — checklist (config, server, extension)"; echo "  logs            — shell + journal"; echo "  uninstall [--all] — remove plugin+extension (keep token/config unless --all)"; ;;
+  *) do_status ;;
+esac
