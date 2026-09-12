@@ -121,19 +121,19 @@ else
 fi
 
 echo "== 4. GNOME Shell extension (panel pill) =="
-EXT_SRC="$PWD/extension/opencode-status-pill@local"
-EXT_DST="$HOME/.local/share/gnome-shell/extensions/opencode-status-pill@local"
+EXT_SRC="$PWD/extension/opencode-status-pill@x0shreyash.github.io"
+EXT_DST="$HOME/.local/share/gnome-shell/extensions/opencode-status-pill@x0shreyash.github.io"
 mkdir -p "$HOME/.local/share/gnome-shell/extensions"
 rm -rf "$EXT_DST"
 cp -r "$EXT_SRC" "$EXT_DST"
 echo "  copied to $EXT_DST"
 
 if command -v gnome-extensions >/dev/null 2>&1; then
-  gnome-extensions enable opencode-status-pill@local 2>/dev/null || true
-  if gnome-extensions list --enabled 2>/dev/null | grep -q "opencode-status-pill@local"; then
+  gnome-extensions enable opencode-status-pill@x0shreyash.github.io 2>/dev/null || true
+  if gnome-extensions list --enabled 2>/dev/null | grep -q "opencode-status-pill@x0shreyash.github.io"; then
     echo "  extension: enabled"
   else
-    echo "  extension: installed but not yet enabled (try: gnome-extensions enable opencode-status-pill@local)"
+    echo "  extension: installed but not yet enabled (try: gnome-extensions enable opencode-status-pill@x0shreyash.github.io)"
     echo "  note: fresh install on Wayland requires logout/login to appear"
   fi
 else

@@ -112,7 +112,7 @@ do_doctor() {
 
   echo "1) Files"
   [ -f "$HOME/.config/opencode/plugins/traffic-light/traffic-light.js" ] && echo "  ✓ plugin installed at ~/.config/opencode/plugins/traffic-light/" || { echo "  ✗ plugin missing"; FAIL=$((FAIL+1)); }
-  [ -d "$HOME/.local/share/gnome-shell/extensions/opencode-status-pill@local" ] && echo "  ✓ extension installed" || { echo "  ✗ extension not in ~/.local/share/gnome-shell/extensions/"; FAIL=$((FAIL+1)); }
+  [ -d "$HOME/.local/share/gnome-shell/extensions/opencode-status-pill@x0shreyash.github.io" ] || [ -d "$HOME/.local/share/gnome-shell/extensions/opencode-status-pill@local" ] && echo "  ✓ extension installed" || { echo "  ✗ extension not in ~/.local/share/gnome-shell/extensions/"; FAIL=$((FAIL+1)); }
   [ -f "$TOKEN_FILE" ] && echo "  ✓ token exists ($(wc -c < "$TOKEN_FILE" | tr -d ' ') bytes)" || echo "  ○ token missing (will be created on setup)"
   if [ -f "$CFG/config.json" ]; then
     if python3 -m json.tool "$CFG/config.json" >/dev/null 2>&1; then
@@ -170,19 +170,19 @@ do_doctor() {
   echo ""
   echo "4) GNOME Shell extension"
   if command -v gnome-extensions >/dev/null 2>&1; then
-    if gnome-extensions list 2>/dev/null | grep -q "opencode-status-pill@local"; then
-      STATE=$(gnome-extensions info opencode-status-pill@local 2>/dev/null | grep -i state || true)
+    if gnome-extensions list 2>/dev/null | grep -q "opencode-status-pill@x0shreyash.github.io" || gnome-extensions list 2>/dev/null | grep -q "opencode-status-pill@local"; then
+      STATE=$(gnome-extensions info opencode-status-pill@x0shreyash.github.io 2>/dev/null | grep -i state || gnome-extensions info opencode-status-pill@local 2>/dev/null | grep -i state || true)
       echo "  ✓ extension listed: $STATE"
-      if gnome-extensions show opencode-status-pill@local 2>/dev/null | grep -qi "enabled.*yes\|state.*enabled"; then echo "    enabled"; else echo "    check: gnome-extensions enable opencode-status-pill@local"; fi
+      if gnome-extensions show opencode-status-pill@x0shreyash.github.io 2>/dev/null | grep -qi "enabled.*yes\|state.*enabled" || gnome-extensions show opencode-status-pill@local 2>/dev/null | grep -qi "enabled.*yes\|state.*enabled"; then echo "    enabled"; else echo "    check: gnome-extensions enable opencode-status-pill@x0shreyash.github.io"; fi
       PASS=$((PASS+1))
     else
       echo "  ✗ extension not listed (not installed?)"
       FAIL=$((FAIL+1))
     fi
-    if gnome-extensions list --enabled 2>/dev/null | grep -q "opencode-status-pill@local"; then
+    if gnome-extensions list --enabled 2>/dev/null | grep -q "opencode-status-pill@x0shreyash.github.io" || gnome-extensions list --enabled 2>/dev/null | grep -q "opencode-status-pill@local"; then
       echo "  ✓ extension enabled"
     else
-      echo "  ○ extension installed but not enabled — run: gnome-extensions enable opencode-status-pill@local (then logout/login if fresh)"
+      echo "  ○ extension installed but not enabled — run: gnome-extensions enable opencode-status-pill@x0shreyash.github.io (then logout/login if fresh)"
     fi
   else
     echo "  ○ gnome-extensions not found"
@@ -322,8 +322,8 @@ print("deregistered from opencode.jsonc")
 PY
   fi
   echo "Disabling extension ..."
-  gnome-extensions disable opencode-status-pill@local 2>/dev/null || true
-  rm -rf ~/.local/share/gnome-shell/extensions/opencode-status-pill@local 2>/dev/null || true
+  gnome-extensions disable opencode-status-pill@x0shreyash.github.io 2>/dev/null || true
+  rm -rf ~/.local/share/gnome-shell/extensions/opencode-status-pill@x0shreyash.github.io 2>/dev/null || true
   echo "Removing CLI link ..."
   rm -f ~/.local/bin/traffic-light 2>/dev/null || true
   if [ "$REMOVE_ALL" = "1" ]; then

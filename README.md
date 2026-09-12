@@ -18,7 +18,7 @@ opencode TUI(s) ──events──▶ traffic-light.js (:4390) ──HTTP──�
 ```
 
 1. **`traffic-light.js`** — opencode plugin (Bun). Tracks `Map<sid, {color, reason, since, cwd}>`. Serves `GET /status`, `GET /health`, `POST /event` (token-gated). Priority `error > red > yellow > green`. Stale if `now - lastEvent > staleMs` (5m default).
-2. **`extension/opencode-status-pill@local`** — GNOME 45–51 extension. Polls `/status` every `pollMs`, shows active dot, popup lists sessions with elapsed/stale.
+2. **`extension/opencode-status-pill@x0shreyash.github.io`** — GNOME 45–49 extension. Polls `/status` every `pollMs`, shows active dot, popup lists sessions with elapsed/stale.
 3. **`traffic-light` CLI + `setup.sh`** — installer and tooling.
 
 ## Setup
@@ -32,7 +32,7 @@ opencode
 curl -H "x-traffic-token: $(cat ~/.config/opencode-status-pill/token)" http://127.0.0.1:4390/status
 ```
 
-`setup.sh` links CLI to `~/.local/bin`, creates token at `~/.config/opencode-status-pill/token`, installs plugin to `~/.config/opencode/plugins/traffic-light/`, installs extension to `~/.local/share/gnome-shell/extensions/opencode-status-pill@local/`.
+`setup.sh` links CLI to `~/.local/bin`, creates token at `~/.config/opencode-status-pill/token`, installs plugin to `~/.config/opencode/plugins/traffic-light/`, installs extension to `~/.local/share/gnome-shell/extensions/opencode-status-pill@x0shreyash.github.io/`.
 
 ## Daily use
 
@@ -43,7 +43,7 @@ opencode-status-pill history <sid>   # last 10 state changes
 opencode-status-pill waybar          # JSON for waybar
 opencode-status-pill doctor          # checklist
 opencode-status-pill logs            # shell logs
-# prefs: gnome-extensions prefs opencode-status-pill@local
+# prefs: gnome-extensions prefs opencode-status-pill@x0shreyash.github.io
 ```
 
 Config: `~/.config/opencode-status-pill/config.json` — `pollMs`, `staleMs`, `colors`, `sizes` (hot-reloaded).
@@ -53,7 +53,7 @@ Config: `~/.config/opencode-status-pill/config.json` — `pollMs`, `staleMs`, `c
 | File | What |
 |---|---|
 | `traffic-light.js` / `package.json` | opencode plugin |
-| `extension/opencode-status-pill@local/` | GNOME extension |
+| `extension/opencode-status-pill@x0shreyash.github.io/` | GNOME extension |
 | `traffic-light` | CLI |
 | `tests/` | tests |
 | `setup.sh` | installer |
@@ -66,7 +66,7 @@ Config: `~/.config/opencode-status-pill/config.json` — `pollMs`, `staleMs`, `c
 
 ## Requirements
 
-- GNOME 45–51
+- GNOME 45–49
 - opencode ≥ 1.18
 - `gnome-extensions` CLI
 
