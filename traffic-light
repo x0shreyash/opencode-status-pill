@@ -132,7 +132,6 @@ do_doctor() {
       PASS=$((PASS+1))
     else
       echo "  ✗ traffic-light NOT in effective config — run ./setup.sh and restart TUI"
-      echo "    hint: opencode.jsonc overrides opencode.json"
       FAIL=$((FAIL+1))
     fi
   else
