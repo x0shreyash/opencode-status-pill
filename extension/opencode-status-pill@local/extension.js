@@ -31,7 +31,6 @@ function fmtElapsed(ms) {
 
 function shortCwd(cwd) {
   if (!cwd) return 'global';
-  // show last 2 segments + home tilde
   let p = cwd;
   const home = GLib.get_home_dir();
   if (p.startsWith(home)) p = '~' + p.slice(home.length);
@@ -103,8 +102,6 @@ export default class TrafficLightExtension extends Extension {
     });
   }
 
-  // colors/sizes are read directly from this._config in _updatePill — no separate apply needed
-
   enable() {
     this._token = null;
     this._config = this._loadConfig();
@@ -113,7 +110,6 @@ export default class TrafficLightExtension extends Extension {
     this._indicator = new PanelMenu.Button(0.0, this.metadata.name, false);
     this._indicator.add_style_class_name('traffic-light');
 
-    // 3-dot traffic light — 3 lenses, one glows; error reuses red lens with magenta pulse
     this._pill = new St.BoxLayout({ style_class: 'traffic-pill has-active', x_align: Clutter.ActorAlign.CENTER });
     this._dots = {};
     for (const c of ['red', 'yellow', 'green']) {
@@ -123,7 +119,6 @@ export default class TrafficLightExtension extends Extension {
     }
     this._indicator.add_child(this._pill);
 
-    // popup menu
     this._buildMenu();
 
     Main.panel.addToStatusArea(this.uuid, this._indicator);
@@ -135,17 +130,14 @@ export default class TrafficLightExtension extends Extension {
 
     this._updatePill('green', false);
 
-    // poll immediately then interval (uses config pollMs)
     this._poll();
     this._restartPoll();
 
-    // refresh elapsed labels every second
     this._tickerId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
       this._refreshElapsed();
       return GLib.SOURCE_CONTINUE;
     });
 
-    // watch config + token
     this._watchConfig();
   }
 
@@ -233,7 +225,6 @@ export default class TrafficLightExtension extends Extension {
   }
 
   _updatePill(aggregate, isOffline) {
-    // 3 dots, magenta error reuses red lens with pulse
     for (const c of ['red', 'yellow', 'green']) {
       const dot = this._dots[c];
       dot.remove_style_class_name('active');
@@ -265,7 +256,6 @@ export default class TrafficLightExtension extends Extension {
   }
 
   _updateMenu(sessions, aggregate) {
-    // clear rows
     for (const it of this._rowItems) it.destroy();
     this._rowItems = [];
 
@@ -277,7 +267,6 @@ export default class TrafficLightExtension extends Extension {
       return;
     }
 
-    // sort already sorted by plugin priority, but ensure
     const sorted = [...sessions].sort((a, b) => {
       const pri = { error: 4, red: 3, yellow: 2, green: 1 };
       return (pri[b.color] || 0) - (pri[a.color] || 0) || a.since - b.since;

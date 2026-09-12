@@ -9,7 +9,7 @@ chmod +x traffic-light
 mkdir -p ~/.local/bin
 ln -sf "$PWD/traffic-light" ~/.local/bin/traffic-light
 ln -sf "$PWD/traffic-light" ~/.local/bin/opencode-status-pill
-echo "  linked ~/.local/bin/traffic-light + opencode-status-pill (ensure ~/.local/bin is on PATH)"
+echo "  linked ~/.local/bin/traffic-light + opencode-status-pill"
 
 echo "== 2. token (persistent) =="
 mkdir -p ~/.config/opencode-status-pill
@@ -149,11 +149,4 @@ else
 fi
 
 echo ""
-echo "Done. Next:"
-echo "  1. Logout/login if this is a fresh extension install (Wayland requirement)."
-echo "  2. (Re)start your opencode TUI so it loads the plugin (plugins load once at startup)."
-echo "  3. Check pill in top bar — green when idle."
-echo "  4. opencode-status-pill status   — raw health"
-echo "     opencode-status-pill sessions — per-session table"
-echo "     opencode-status-pill doctor   — checklist"
-echo "     opencode-status-pill logs     — shell logs"
+echo "Done."

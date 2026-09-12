@@ -64,13 +64,12 @@ export default class TrafficLightPrefs extends ExtensionPreferences {
     const page = new Adw.PreferencesPage({ title: 'Traffic Light', icon_name: 'preferences-system-symbolic' });
     window.add(page);
 
-    // Timing group
-    const timing = new Adw.PreferencesGroup({ title: 'Timing', description: 'Polling and stale detection. Changes apply without restart (hot-reloaded).' });
+    const timing = new Adw.PreferencesGroup({ title: 'Timing' });
     page.add(timing);
 
     const pollRow = new Adw.SpinRow({
       title: 'Poll interval',
-      subtitle: 'How often the pill polls 127.0.0.1:4390 (ms). Lower = more responsive, higher = less CPU.',
+      subtitle: 'Poll 127.0.0.1:4390 (ms).',
       adjustment: new Gtk.Adjustment({ lower: 200, upper: 2000, step_increment: 50, value: cfg.pollMs }),
     });
     pollRow.connect('notify::value', () => {
@@ -81,7 +80,7 @@ export default class TrafficLightPrefs extends ExtensionPreferences {
 
     const staleRow = new Adw.SpinRow({
       title: 'Stale timeout',
-      subtitle: 'Mark yellow/red/error as stale after this many ms without heartbeat (e.g. 300000 = 5 min).',
+      subtitle: 'Stale after ms without heartbeat.',
       adjustment: new Gtk.Adjustment({ lower: 30000, upper: 600000, step_increment: 30000, value: cfg.staleMs }),
     });
     staleRow.connect('notify::value', () => {
@@ -90,8 +89,7 @@ export default class TrafficLightPrefs extends ExtensionPreferences {
     });
     timing.add(staleRow);
 
-    // Colors group — live hot-reload, no restart
-    const colors = new Adw.PreferencesGroup({ title: 'Colors', description: 'Pill dot colors (hex). Changes apply live on next poll (hot-reloaded).' });
+    const colors = new Adw.PreferencesGroup({ title: 'Colors' });
     page.add(colors);
 
     for (const [key, label] of [['red','Red — needs you'], ['yellow','Yellow — working'], ['green','Green — idle'], ['error','Error — magenta']]) {
@@ -110,16 +108,15 @@ export default class TrafficLightPrefs extends ExtensionPreferences {
       colors.add(row);
     }
 
-    // Sizes group — 5 keys (pill geometry only, live hot-reload)
-    const sizes = new Adw.PreferencesGroup({ title: 'Sizes', description: 'Pill geometry — live hot-reload. Defaults: 3 / 12 / 1 / 24 / 7.' });
+    const sizes = new Adw.PreferencesGroup({ title: 'Sizes' });
     page.add(sizes);
 
     const sizeDefs = [
-      { key: 'pillPaddingV', title: 'Vertical padding', subtitle: 'Top/bottom inside pill (px). Default 3.', lower: 0, upper: 12, step: 1 },
-      { key: 'pillPaddingH', title: 'Horizontal padding', subtitle: 'Left/right inside pill (px). Default 12.', lower: 6, upper: 24, step: 1 },
-      { key: 'borderWidth', title: 'Border width', subtitle: 'Luminous border thickness (px). 0 hides border. Default 1.', lower: 0, upper: 4, step: 1 },
-      { key: 'pillHeight', title: 'Pill height', subtitle: 'Min-height (px). Keep ≤28 for WhiteSur 28px panel. Default 24.', lower: 16, upper: 36, step: 1 },
-      { key: 'spacing', title: 'Dot spacing', subtitle: 'Gap between 11px dots (px). Default 7 — traffic light rhythm.', lower: 0, upper: 12, step: 1 },
+      { key: 'pillPaddingV', title: 'Vertical padding', subtitle: 'Top/bottom (px). Default 3.', lower: 0, upper: 12, step: 1 },
+      { key: 'pillPaddingH', title: 'Horizontal padding', subtitle: 'Left/right (px). Default 12.', lower: 6, upper: 24, step: 1 },
+      { key: 'borderWidth', title: 'Border width', subtitle: 'Border (px). Default 1.', lower: 0, upper: 4, step: 1 },
+      { key: 'pillHeight', title: 'Pill height', subtitle: 'Min-height (px). Default 24.', lower: 16, upper: 36, step: 1 },
+      { key: 'spacing', title: 'Dot spacing', subtitle: 'Gap between dots (px). Default 7.', lower: 0, upper: 12, step: 1 },
     ];
     for (const def of sizeDefs) {
       const adj = new Gtk.Adjustment({ lower: def.lower, upper: def.upper, step_increment: def.step, value: cfg.sizes[def.key] });
@@ -148,8 +145,7 @@ export default class TrafficLightPrefs extends ExtensionPreferences {
     sizesHint.activatable_widget = resetBtn;
     sizes.add(sizesHint);
 
-    // Info group
-    const info = new Adw.PreferencesGroup({ title: 'Files', description: 'Direct file edits also work — hot-reloaded.' });
+    const info = new Adw.PreferencesGroup({ title: 'Files' });
     page.add(info);
 
     const tokenRow = new Adw.ActionRow({ title: 'Token', subtitle: GLib.build_filenamev([GLib.get_home_dir(), '.config', 'opencode-status-pill', 'token']) });
@@ -168,10 +164,6 @@ export default class TrafficLightPrefs extends ExtensionPreferences {
     });
     configRow.add_suffix(openBtn);
     info.add(configRow);
-
-    const hint = new Adw.ActionRow({ title: 'Tip', subtitle: 'After fresh install on Wayland, logout/login once so the pill appears. Then restart any opencode TUI.' });
-    hint.sensitive = false;
-    info.add(hint);
 
     window.set_default_size(640, 620);
   }

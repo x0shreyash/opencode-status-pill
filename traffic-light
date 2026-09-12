@@ -190,12 +190,7 @@ do_doctor() {
   fi
 
   echo ""
-  echo "5) Shell logs"
-  echo "  hint: journalctl -o cat /usr/bin/gnome-shell | grep -i traffic-light"
-  echo "       or: journalctl --user -f | grep traffic-light"
-  echo ""
   echo "Summary: $PASS ok, $FAIL failed"
-  echo "If server failed, restart your TUI after setup. If extension failed, logout/login after fresh install."
   [ "$FAIL" -eq 0 ] && exit 0 || exit 1
 }
 

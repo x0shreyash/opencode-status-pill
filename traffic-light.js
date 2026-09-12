@@ -29,8 +29,6 @@ loadConfig();
 
 const TOKEN_PATH = join(homedir(), ".config", "opencode-status-pill", "token");
 
-// Map<sid, SessionState>
-/** @type {Map<string, any>} */
 const states = new Map();
 const histories = new Map(); // sid -> Array<{at:number,color:string,reason:string}>
 const HISTORY_LIMIT = 10;
@@ -49,7 +47,6 @@ function getHistory(sid) {
   return histories.get(sid) || [];
 }
 
-// ---- helpers ----
 function nowMs() { return Date.now(); }
 
 function priorityOf(c) {
@@ -108,7 +105,6 @@ function titleOf(event) {
   return p.title || (p.info && p.info.title) || (p.session && p.session.title) || undefined;
 }
 
-// fallback for legacy free-text status (secondary)
 function statusColor(s) {
   if (s && typeof s === "object") s = String(s.type || s.status || "");
   s = String(s || "").toLowerCase();
@@ -153,15 +149,12 @@ function ensureServer() {
       async fetch(req) {
         const url = new URL(req.url);
 
-        // health — also reload config so changes apply without restart
         if (req.method === "GET" && url.pathname === "/health") {
           const cfg = loadConfig();
           return Response.json({ ok: true, serving: true, sessions: states.size, uptime: nowMs() - startedAt, aggregate: aggregate(), config: { staleMs: cfg.staleMs } });
         }
 
-        // POST /event — internal forward
         if (req.method === "POST" && url.pathname === "/event") {
-          // auth check for mutating endpoint (sync, cheap)
           try {
             if (fsSync.existsSync(TOKEN_PATH)) {
               const tok = fsSync.readFileSync(TOKEN_PATH, "utf8").trim();
@@ -174,7 +167,6 @@ function ensureServer() {
           let b;
           try { b = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
           if (!b || !b.sid) return Response.json({ ok: false }, { status: 400 });
-          // handle delete marker
           if (b._delete === true || b.color === "__delete__" || b.state === "__delete__") {
             states.delete(b.sid);
             histories.delete(b.sid);
@@ -216,7 +208,6 @@ function ensureServer() {
           return Response.json({ ok: true });
         }
 
-        // GET /history — per-sid history ring
         if (url.pathname === "/history") {
           const sidQ = url.searchParams.get("sid");
           if (!sidQ) return Response.json({ error: "missing sid" }, { status: 400 });
@@ -224,7 +215,6 @@ function ensureServer() {
           return Response.json({ sid: sidQ, history: h });
         }
 
-        // GET /status — reload config each request so staleMs updates live
         if (url.pathname === "/status" || url.pathname === "/status/") {
           const cfg = loadConfig();
           const includeHistory = url.searchParams.get("history") === "1" || url.searchParams.get("history") === "true";
@@ -240,7 +230,6 @@ function ensureServer() {
           return Response.json({ aggregate: ag, state: ag, sessions, config: { staleMs: cfg.staleMs } });
         }
 
-        // fallback: aggregate only
         const ag = aggregate();
         return Response.json({ state: ag, aggregate: ag });
       },
@@ -259,7 +248,6 @@ async function setState(sid, color, reason, extra = {}) {
   const rec = states.get(sid);
 
   if (rec) {
-    // error persists until session.created / deleted clears it
     if (rec.color === "error" && color === "green" && !extra.force) {
       // only heartbeat, don't downgrade error
       rec.lastEvent = ts;
@@ -291,7 +279,6 @@ async function setState(sid, color, reason, extra = {}) {
   }
 
   if (!ensureServer()) {
-    // forward enriched payload
     const payload = {
       sid,
       state: color,
@@ -307,7 +294,6 @@ async function setState(sid, color, reason, extra = {}) {
   }
 }
 
-// ---- plugin ----
 export const TrafficLightPlugin = async (ctx) => {
   try {
     const ok = ensureServer();
