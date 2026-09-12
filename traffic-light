@@ -291,14 +291,12 @@ try:
  d=json.load(sys.stdin)
  agg=d.get('aggregate') or d.get('state') or 'green'
  sessions=d.get('sessions',[])
-  icons={'green':'●','yellow':'●','red':'●','error':'◆'}
-  colors={'green':'#2ecc71','yellow':'#ffcc00','red':'#ff453a','error':'#bf5af2'}
+ icons={'green':'●','yellow':'●','red':'●','error':'◆'}
+ colors={'green':'#2ecc71','yellow':'#ffcc00','red':'#ff453a','error':'#bf5af2'}
  icon=icons.get(agg, '●')
- # tooltip: list sessions
  tooltip=f'{agg} — {len(sessions)} session(s)'
  for s in sessions[:5]:
-   tooltip += f\"\\n{s['color']:6} {s.get('cwd','') } {s['reason']}\"
- # waybar class for CSS
+  tooltip += f\"\n{s['color']:6} {s.get('cwd','') } {s['reason']}\"
  cls=agg
  if any(s.get('stale') for s in sessions): cls += ' stale'
  print(json.dumps({'text': icon, 'tooltip': tooltip, 'class': cls, 'alt': agg}))
