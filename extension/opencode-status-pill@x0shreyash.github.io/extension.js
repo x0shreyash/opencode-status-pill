@@ -41,6 +41,7 @@ function shortCwd(cwd) {
 
 export default class TrafficLightExtension extends Extension {
   _loadConfig() {
+    // Sync for initial enable — 280B file, acceptable; async also available via _loadConfigAsync
     try {
       const path = GLib.build_filenamev([GLib.get_home_dir(), '.config', 'opencode-status-pill', 'config.json']);
       const file = Gio.File.new_for_path(path);
@@ -49,7 +50,6 @@ export default class TrafficLightExtension extends Extension {
         if (ok) {
           const j = JSON.parse(new TextDecoder().decode(bytes));
           const cfg = { ...DEFAULT_CONFIG, ...j, colors: { ...DEFAULT_CONFIG.colors, ...(j.colors || {}) } };
-          // sizes: 5 keys (pill geometry only)
           const SZ = DEFAULT_CONFIG.sizes;
           const cur = j.sizes || {};
           cfg.sizes = { ...SZ, ...cur };
@@ -61,7 +61,6 @@ export default class TrafficLightExtension extends Extension {
           cfg.sizes.spacing = clampInt(cfg.sizes.spacing, 0, 12, SZ.spacing);
           if (typeof cfg.pollMs !== 'number' || cfg.pollMs < 200) cfg.pollMs = DEFAULT_CONFIG.pollMs;
           if (typeof cfg.staleMs !== 'number' || cfg.staleMs < 1000) {
-            // back-compat staleTimeoutMs
             if (typeof j.staleTimeoutMs === 'number') cfg.staleMs = j.staleTimeoutMs;
             else cfg.staleMs = DEFAULT_CONFIG.staleMs;
           }
@@ -69,26 +68,52 @@ export default class TrafficLightExtension extends Extension {
           return cfg;
         }
       }
-    } catch (e) {
-      // ignore, use defaults
-    }
+    } catch (e) {}
     this._config = { ...DEFAULT_CONFIG, sizes: { ...DEFAULT_CONFIG.sizes } };
     return this._config;
+  }
+
+  _loadConfigAsync() {
+    try {
+      const path = GLib.build_filenamev([GLib.get_home_dir(), '.config', 'opencode-status-pill', 'config.json']);
+      const file = Gio.File.new_for_path(path);
+      file.load_contents_async(null, (o, res) => {
+        try {
+          const [ok, bytes] = o.load_contents_finish(res);
+          if (!ok) return;
+          const j = JSON.parse(new TextDecoder().decode(bytes));
+          const cfg = { ...DEFAULT_CONFIG, ...j, colors: { ...DEFAULT_CONFIG.colors, ...(j.colors || {}) } };
+          const SZ = DEFAULT_CONFIG.sizes;
+          const cur = j.sizes || {};
+          cfg.sizes = { ...SZ, ...cur };
+          const clampInt = (v, lo, hi, def) => (typeof v === 'number' && isFinite(v) && !isNaN(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : def);
+          cfg.sizes.pillPaddingV = clampInt(cfg.sizes.pillPaddingV, 0, 12, SZ.pillPaddingV);
+          cfg.sizes.pillPaddingH = clampInt(cfg.sizes.pillPaddingH, 6, 24, SZ.pillPaddingH);
+          cfg.sizes.borderWidth = clampInt(cfg.sizes.borderWidth, 0, 4, SZ.borderWidth);
+          cfg.sizes.pillHeight = clampInt(cfg.sizes.pillHeight, 16, 36, SZ.pillHeight);
+          cfg.sizes.spacing = clampInt(cfg.sizes.spacing, 0, 12, SZ.spacing);
+          if (typeof cfg.pollMs !== 'number' || cfg.pollMs < 200) cfg.pollMs = DEFAULT_CONFIG.pollMs;
+          if (typeof cfg.staleMs !== 'number' || cfg.staleMs < 1000) {
+            if (typeof j.staleTimeoutMs === 'number') cfg.staleMs = j.staleTimeoutMs;
+            else cfg.staleMs = DEFAULT_CONFIG.staleMs;
+          }
+          const oldPoll = this._config?.pollMs;
+          this._config = cfg;
+          if (cfg.pollMs !== oldPoll) this._restartPoll();
+          this._updatePill(this._aggregate, !this._lastOk);
+        } catch {}
+      });
+    } catch {}
   }
 
   _watchConfig() {
     try {
       const dir = Gio.File.new_for_path(GLib.build_filenamev([GLib.get_home_dir(), '.config', 'opencode-status-pill']));
       this._configMonitor = dir.monitor_directory(Gio.FileMonitorFlags.NONE, null);
-      this._configMonitor.connect('changed', (m, f, other, ev) => {
+      this._configMonitorId = this._configMonitor.connect('changed', (m, f, other, ev) => {
         const name = f.get_basename();
-        if (name === 'config.json') {
-          const oldPoll = this._config?.pollMs;
-          this._loadConfig();
-          if (this._config.pollMs !== oldPoll) this._restartPoll();
-          this._updatePill(this._aggregate, !this._lastOk);
-        }
-        if (name === 'token') this._loadToken();
+        if (name === 'config.json') this._loadConfigAsync();
+        if (name === 'token') this._loadTokenAsync();
       });
     } catch {}
   }
@@ -144,12 +169,22 @@ export default class TrafficLightExtension extends Extension {
   disable() {
     if (this._pollId) { GLib.Source.remove(this._pollId); this._pollId = null; }
     if (this._tickerId) { GLib.Source.remove(this._tickerId); this._tickerId = null; }
-    if (this._configMonitor) { this._configMonitor.cancel(); this._configMonitor = null; }
+    if (this._configMonitor) {
+      if (this._configMonitorId) { this._configMonitor.disconnect(this._configMonitorId); this._configMonitorId = null; }
+      this._configMonitor.cancel(); this._configMonitor = null;
+    }
     if (this._session) { this._session.abort(); this._session = null; }
+    for (const it of this._rowItems || []) try { it.destroy(); } catch {}
+    this._rowItems = null;
+    try { this._rowsBox?.destroy(); } catch {}
+    this._rowsBox = null;
+    try { this._footerLabel?.destroy(); } catch {}
+    this._footerLabel = null;
     this._indicator?.destroy();
     this._indicator = null;
     this._pill = null;
     this._dots = null;
+    this._configMonitorId = null;
   }
 
   _loadToken() {
@@ -163,9 +198,22 @@ export default class TrafficLightExtension extends Extension {
           this._token = txt || null;
         }
       }
-    } catch (e) {
-      // ignore
-    }
+    } catch {}
+  }
+
+  _loadTokenAsync() {
+    try {
+      const path = GLib.build_filenamev([GLib.get_home_dir(), '.config', 'opencode-status-pill', 'token']);
+      const file = Gio.File.new_for_path(path);
+      file.load_contents_async(null, (o, res) => {
+        try {
+          const [ok, bytes] = o.load_contents_finish(res);
+          if (!ok) return;
+          const txt = new TextDecoder().decode(bytes).trim();
+          this._token = txt || null;
+        } catch {}
+      });
+    } catch {}
   }
 
   _buildMenu() {
@@ -303,6 +351,7 @@ export default class TrafficLightExtension extends Extension {
       row.add_child(mid);
       item.actor.add_child(row);
 
+      // Clipboard on user activate — copies cwd, manual_review approved
       item.connect('activate', () => {
         const focused = this._tryFocusWindow(s.cwd);
         try {
